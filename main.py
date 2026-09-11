@@ -37,7 +37,7 @@ async def send_like(
 
     return {
         "status": "success", 
-        "message": f"Like request processed for UID: {req_uid}",
+        "message": f"Request received for UID: {req_uid}",
         "uid": req_uid, 
         "region": req_region
     }
