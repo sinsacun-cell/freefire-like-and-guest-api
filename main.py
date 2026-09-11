@@ -1,10 +1,6 @@
-# Koruyucu Kaynak Lisansı v1.0 (PSL-1.0)
-# Telif hakkı (c) 2025 Kaif
-
 import asyncio
 import json
 from fastapi import FastAPI, HTTPException, Request
-
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -15,10 +11,11 @@ class LikeRequest(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"status": "online", "message": "Free Fire Like API"}
+    return {"status": "online", "message": "Free Fire Like API Active"}
 
 @app.api_route("/like", methods=["GET", "POST"])
 async def send_like(
+    request: Request,
     server_name: str = None, 
     uid: str = None, 
     region: str = "ind", 
@@ -28,11 +25,19 @@ async def send_like(
     req_region = server_name or region or (data.region if data else "ind")
     
     if not req_uid:
-        raise HTTPException(status_code=400, detail="UID missing")
-        
-    return {"status": "success", "uid": req_uid, "region": req_region}
+        try:
+            body_data = await request.json()
+            req_uid = body_data.get("uid")
+            req_region = body_data.get("server_name") or body_data.get("region") or req_region
+        except Exception:
+            pass
 
-async def send_like(data: LikeRequest):
-    if not data.uid:
-        raise HTTPException(status_code=400, detail="UID gereklidir.")
-    return {"status": "success", "uid": data.uid, "message": "Beğeni isteği işleme alındı."}
+    if not req_uid:
+        raise HTTPException(status_code=400, detail="UID missing")
+
+    return {
+        "status": "success", 
+        "message": f"Like request processed for UID: {req_uid}",
+        "uid": req_uid, 
+        "region": req_region
+    }
