@@ -33,7 +33,6 @@ async def get_player_info(
     if not req_uid:
         raise HTTPException(status_code=400, detail="UID eksik")
 
-    # Oyun verilerini çeken servis
     api_url = f"https://free-fire-api-five.vercel.app/api/player?uid={req_uid}&region={req_region}"
     
     async with httpx.AsyncClient() as client:
@@ -48,7 +47,8 @@ async def get_player_info(
                     "created_at": p.get("account_created", "Bilinmiyor"),
                     "last_login": p.get("last_login", "Bilinmiyor"),
                     "likes": p.get("likes", 0),
-                    "guild": p.get("guild_name", "Bir birliğe üye değil")
+                    "guild": p.get("guild_name", "Bir birliğe üye değil"),
+                    "region": p.get("region", req_region.upper())
                 }
             else:
                 return {"status": "error", "message": "Oyuncu bulunamadı."}
