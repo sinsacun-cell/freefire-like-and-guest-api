@@ -11,7 +11,7 @@ class LikeRequest(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"status": "online", "message": "Free Fire Like API Active"}
+    return {"status": "online", "message": "API Active"}
 
 @app.api_route("/like", methods=["GET", "POST"])
 async def send_like(
