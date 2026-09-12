@@ -35,30 +35,29 @@ async def handle_root(request: Request):
                     uid = parts[1]
                     region = parts[2].lower() if len(parts) > 2 else "sg"
 
-                    # Farklı aktif gateway sorgu adresleri
-                    urls = [
+                    # Dış kaynak API'leri (güncel ve aktif gateway'ler)
+                    api_urls = [
                         f"https://freefireapi.com.br/api/search_id?id={uid}&region={region}",
-                        f"https://ff-api-like.vercel.app/info?uid={uid}&region={region}",
-                        f"https://free-fire-api-five.vercel.app/api/player?uid={uid}&region={region}"
+                        f"https://api.garenafreefire.org/info?uid={uid}&region={region}"
                     ]
 
                     p = None
-                    err_msg = ""
+                    last_err = ""
 
                     async with httpx.AsyncClient(follow_redirects=True) as client:
                         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-                        for url in urls:
+                        for url in api_urls:
                             try:
-                                res = await client.get(url, timeout=5.0, headers=headers)
+                                res = await client.get(url, timeout=6.0, headers=headers)
                                 if res.status_code == 200:
-                                    data_json = res.json()
-                                    if isinstance(data_json, dict) and len(data_json) > 0:
-                                        p = data_json
+                                    res_data = res.json()
+                                    if isinstance(res_data, dict) and len(res_data) > 0:
+                                        p = res_data
                                         break
                                 else:
-                                    err_msg = f"HTTP {res.status_code}"
-                            except Exception as ex:
-                                err_msg = str(ex)
+                                    last_err = f"HTTP {res.status_code}"
+                            except Exception as err:
+                                last_err = "Bağlantı Zaman Aşımı"
 
                     if p:
                         account = p.get("basicInfo") or p.get("AccountInfo") or p
@@ -74,7 +73,11 @@ async def handle_root(request: Request):
                             f"👍 **Beğeni Sayısı:** {likes}"
                         )
                     else:
-                        reply = f"❌ Oyuncu bilgisi çekilemedi ({err_msg}).\nUID: `{uid}` - Bölge: `{region.upper()}`"
+                        reply = (
+                            f"❌ **API Sunucu Hatası ({last_err})**\n\n"
+                            f"Ücretsiz sorgu sunucuları şu an bakımdadır.\n"
+                            f"UID: `{uid}` - Bölge: `{region.upper()}`"
+                        )
 
                     await send_msg(chat_id, reply)
 
