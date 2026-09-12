@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 app = FastAPI()
 
 # BotFather'dan aldığın Telegram Bot Token'ı buraya yaz
-TELEGRAM_BOT_TOKEN = "BURAYA_BOT_TOKEN_YAZ"
+TELEGRAM_BOT_TOKEN = "8909841952:AAEaInTW2VGYirq2TN1qslFQBJw7XjKq7b8"
 EXTERNAL_API = "https://free-fire-api-five.vercel.app/api/player"
 
 async def send_telegram_message(chat_id: int, text: str):
