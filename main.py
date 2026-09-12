@@ -10,7 +10,6 @@ def read_root():
 
 @app.api_route("/info", methods=["GET", "POST"])
 async def get_player_info(request: Request, uid: str = None, region: str = "ind"):
-    # URL parametresi yoksa isteğin JSON bodysinden oku
     if not uid:
         try:
             body_data = await request.json()
