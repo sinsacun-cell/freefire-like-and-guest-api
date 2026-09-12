@@ -23,55 +23,52 @@ async def handle_root(request: Request):
 
             if chat_id and text:
                 if text.startswith("/start"):
-                    await send_msg(chat_id, "👋 Bot aktif! Kullanım: `/bilgi 1875588196 eu`")
+                    await send_msg(chat_id, "👋 Bot aktif! Kullanım: `/bilgi 1875588196 sg`")
                     return JSONResponse(status_code=200, content={"status": "ok"})
 
                 if text.startswith("/bilgi") or text.startswith("/info"):
                     parts = text.split()
                     if len(parts) < 2:
-                        await send_msg(chat_id, "⚠️ Lütfen bir UID girin.\nÖrnek: `/bilgi 1875588196 eu`")
+                        await send_msg(chat_id, "⚠️ Lütfen bir UID girin.\nÖrnek: `/bilgi 1875588196 sg`")
                         return JSONResponse(status_code=200, content={"status": "ok"})
 
                     uid = parts[1]
-                    region = parts[2].lower() if len(parts) > 2 else "eu"
+                    region = parts[2].lower() if len(parts) > 2 else "sg"
 
-                    # Çalışan alternatif Free Fire API uç noktaları
+                    # Farklı aktif Free Fire API servislerini sırayla dene
                     api_urls = [
-                        f"https://free-fire-api-five.vercel.app/api/player?uid={uid}&region={region}",
-                        f"https://free-fire-api-five.vercel.app/player?uid={uid}&region={region}",
-                        f"https://ff-api-five.vercel.app/api/player?uid={uid}&region={region}"
+                        f"https://region-info.vercel.app/api/player?uid={uid}&region={region}",
+                        f"https://free-fire-info-api.vercel.app/api/info?uid={uid}&region={region}",
+                        f"https://ff-info-api.vercel.app/info?uid={uid}&region={region}"
                     ]
 
                     p = None
                     async with httpx.AsyncClient() as client:
                         for url in api_urls:
                             try:
-                                res = await client.get(url, timeout=5.0)
+                                res = await client.get(url, timeout=6.0)
                                 if res.status_code == 200:
                                     p = res.json()
                                     break
                             except Exception:
                                 continue
 
-                    if p and ("nickname" in p or "AccountName" in p or "name" in p):
-                        name = p.get('nickname') or p.get('AccountName') or p.get('name') or 'Bilinmiyor'
+                    if p:
+                        # API yanıt yapısına göre esnek veri çekme
+                        name = p.get('nickname') or p.get('AccountName') or p.get('name') or p.get('basicInfo', {}).get('nickname', 'Bilinmiyor')
                         reg = p.get('region') or p.get('AccountRegion') or region.upper()
-                        created = p.get('account_created') or p.get('AccountCreateTime') or 'Bilinmiyor'
-                        login = p.get('last_login') or p.get('LastLoginTime') or 'Bilinmiyor'
-                        likes = p.get('likes') or p.get('Likes') or 0
-                        guild = p.get('guild_name') or p.get('GuildName') or 'Yok'
+                        likes = p.get('likes') or p.get('Likes') or p.get('basicInfo', {}).get('liked', 0)
+                        level = p.get('level') or p.get('Level') or p.get('basicInfo', {}).get('level', '—')
 
                         reply = (
                             f"🎮 **Free Fire Oyuncu Bilgisi**\n\n"
                             f"👤 **Hesap Adı:** `{name}`\n"
+                            f"⭐ **Seviye:** {level}\n"
                             f"🌍 **Bölge:** {reg}\n"
-                            f"📅 **Kuruluş:** {created}\n"
-                            f"⏰ **Son Giriş:** {login}\n"
-                            f"👍 **Beğeni:** {likes}\n"
-                            f"🛡️ **Birlik:** {guild}"
+                            f"👍 **Beğeni Sayısı:** {likes}"
                         )
                     else:
-                        reply = "❌ Oyuncu bulunamadı veya Free Fire API sunucusu şu an yanıt vermiyor."
+                        reply = "❌ Oyuncu bilgisi çekilemedi. UID veya Bölgeyi kontrol edin (Örn: sg, eu, ind)."
 
                     await send_msg(chat_id, reply)
 
