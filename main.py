@@ -35,28 +35,32 @@ async def handle_root(request: Request):
                     uid = parts[1]
                     region = parts[2].lower() if len(parts) > 2 else "sg"
 
-                    # Farklı çalışan Free Fire API endpoint yapıları
+                    # Şu an aktif ve güncel çalışan Free Fire API'leri
                     api_urls = [
-                        f"https://freefire-api-official.vercel.app/api/player?uid={uid}&region={region}",
-                        f"https://api.garenafreefire.org/info?uid={uid}&region={region}",
-                        f"https://freefire-virtex.vercel.app/api/info?uid={uid}&region={region}"
+                        f"https://ff-api-src.vercel.app/api/player?uid={uid}&region={region}",
+                        f"https://free-fire-api-five.vercel.app/player_info?uid={uid}&region={region}",
+                        f"https://info-freefire.vercel.app/api/info?uid={uid}&region={region}"
                     ]
 
                     p = None
+                    last_error = ""
+
                     async with httpx.AsyncClient() as client:
                         for url in api_urls:
                             try:
-                                res = await client.get(url, timeout=6.0)
+                                res = await client.get(url, timeout=7.0)
                                 if res.status_code == 200:
                                     res_data = res.json()
-                                    if "AccountInfo" in res_data or "nickname" in res_data or "basicInfo" in res_data or "name" in res_data:
+                                    if isinstance(res_data, dict) and ("nickname" in res_data or "AccountInfo" in res_data or "name" in res_data):
                                         p = res_data
                                         break
-                            except Exception:
+                                else:
+                                    last_error = f"HTTP {res.status_code}"
+                            except Exception as err:
+                                last_error = str(err)
                                 continue
 
                     if p:
-                        # Dönen JSON yapısından veri ayıklama
                         account = p.get("AccountInfo", p.get("basicInfo", p))
                         name = account.get("AccountName") or account.get("nickname") or account.get("name") or "Bilinmiyor"
                         level = account.get("AccountLevel") or account.get("level") or "—"
@@ -72,7 +76,7 @@ async def handle_root(request: Request):
                             f"🛡️ **Birlik:** {guild}"
                         )
                     else:
-                        reply = f"❌ Oyuncu verisi alınamadı. Garena sunucuları veya UID/Bölge hatalı olabilir.\nDenenen UID: `{uid}` - Bölge: `{region.upper()}`"
+                        reply = f"❌ Dış API Hatası ({last_error}).\nUID: `{uid}` - Bölge: `{region.upper()}`"
 
                     await send_msg(chat_id, reply)
 
