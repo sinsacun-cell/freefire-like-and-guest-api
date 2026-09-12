@@ -1,7 +1,3 @@
-httpx
-protobuf
-pycryptodome
 fastapi
+httpx
 uvicorn
-pydantic
-requests
