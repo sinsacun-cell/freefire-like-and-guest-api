@@ -23,7 +23,7 @@ async def handle_root(request: Request):
 
             if chat_id and text:
                 if text.startswith("/start"):
-                    await send_msg(chat_id, "👋 Bot aktif ve hazır!\nKullanım: `/bilgi 1875588196 sg`")
+                    await send_msg(chat_id, "👋 Bot aktif!\nKullanım: `/bilgi 1875588196 sg`")
                     return JSONResponse(status_code=200, content={"status": "ok"})
 
                 if text.startswith("/bilgi") or text.startswith("/info"):
@@ -35,49 +35,36 @@ async def handle_root(request: Request):
                     uid = parts[1]
                     region = parts[2].lower() if len(parts) > 2 else "sg"
 
-                    # Dış kaynak API'leri (güncel ve aktif gateway'ler)
-                    api_urls = [
-                        f"https://freefireapi.com.br/api/search_id?id={uid}&region={region}",
-                        f"https://api.garenafreefire.org/info?uid={uid}&region={region}"
-                    ]
-
-                    p = None
-                    last_err = ""
+                    # Garena sunucu uç noktası (JSON formatlı sorgu gateway)
+                    url = f"https://region-api.freefiremobile.com/api/get_player_info?uid={uid}&region={region}"
 
                     async with httpx.AsyncClient(follow_redirects=True) as client:
-                        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-                        for url in api_urls:
-                            try:
-                                res = await client.get(url, timeout=6.0, headers=headers)
-                                if res.status_code == 200:
-                                    res_data = res.json()
-                                    if isinstance(res_data, dict) and len(res_data) > 0:
-                                        p = res_data
-                                        break
-                                else:
-                                    last_err = f"HTTP {res.status_code}"
-                            except Exception as err:
-                                last_err = "Bağlantı Zaman Aşımı"
+                        headers = {
+                            "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 11; Redmi Note 13 Pro Build/RP1A.200720.011)"
+                        }
+                        try:
+                            res = await client.get(url, timeout=8.0, headers=headers)
+                            if res.status_code == 200:
+                                p = res.json()
+                                name = p.get("nickname") or p.get("Name") or p.get("AccountName") or "Bilinmiyor"
+                                level = p.get("level") or p.get("Level") or "—"
+                                likes = p.get("likes") or p.get("Likes") or 0
 
-                    if p:
-                        account = p.get("basicInfo") or p.get("AccountInfo") or p
-                        name = account.get("nickname") or account.get("AccountName") or account.get("name") or "Bilinmiyor"
-                        level = account.get("level") or account.get("AccountLevel") or "—"
-                        likes = account.get("liked") or account.get("AccountLikes") or account.get("likes") or 0
-
-                        reply = (
-                            f"🎮 **Free Fire Oyuncu Bilgisi**\n\n"
-                            f"👤 **Hesap Adı:** `{name}`\n"
-                            f"⭐ **Seviye:** {level}\n"
-                            f"🌍 **Bölge:** {region.upper()}\n"
-                            f"👍 **Beğeni Sayısı:** {likes}"
-                        )
-                    else:
-                        reply = (
-                            f"❌ **API Sunucu Hatası ({last_err})**\n\n"
-                            f"Ücretsiz sorgu sunucuları şu an bakımdadır.\n"
-                            f"UID: `{uid}` - Bölge: `{region.upper()}`"
-                        )
+                                reply = (
+                                    f"🎮 **Free Fire Oyuncu Bilgisi**\n\n"
+                                    f"👤 **Hesap Adı:** `{name}`\n"
+                                    f"⭐ **Seviye:** {level}\n"
+                                    f"🌍 **Bölge:** {region.upper()}\n"
+                                    f"👍 **Beğeni Sayısı:** {likes}"
+                                )
+                            else:
+                                reply = (
+                                    f"⚠️ **Servis Bakımda (HTTP {res.status_code})**\n\n"
+                                    f"Kamuya açık Free Fire API servisleri şu an kapalı olduğu için veriler çekilemiyor.\n"
+                                    f"Aranan UID: `{uid}` - Bölge: `{region.upper()}`"
+                                )
+                        except Exception as e:
+                            reply = f"⚠️ Bağlantı Zaman Aşımı: Dış API sunucuları yanıt vermiyor."
 
                     await send_msg(chat_id, reply)
 
