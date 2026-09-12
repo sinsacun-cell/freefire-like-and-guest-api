@@ -4,28 +4,34 @@ from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
+# Dış Free Fire API Adresi
+EXTERNAL_API = "https://free-fire-api-five.vercel.app/api/player"
+
 @app.get("/")
 def read_root():
     return {"status": "online", "message": "FF Stat API Active"}
 
 @app.api_route("/info", methods=["GET", "POST"])
-async def get_player_info(request: Request, uid: str = None, region: str = "ind"):
+async def get_player_info(request: Request, uid: str = None, region: str = "eu"):
+    # URL query veya JSON body üzerinden parametreleri al
     if not uid:
         try:
             body_data = await request.json()
             uid = body_data.get("uid")
-            region = body_data.get("region", "ind")
+            region = body_data.get("region", "eu")
         except Exception:
             pass
 
     if not uid:
-        return JSONResponse(status_code=400, content={"status": "error", "message": "UID eksik"})
+        return JSONResponse(status_code=400, content={"status": "error", "message": "Lütfen geçerli bir UID girin."})
 
-    api_url = f"https://free-fire-api-five.vercel.app/api/player?uid={uid}&region={region}"
+    # Varsayılan bölge Avrupa (eu)
+    req_region = region.lower() if region else "eu"
+    api_url = f"{EXTERNAL_API}?uid={uid}&region={req_region}"
     
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(api_url, timeout=10.0)
+            response = await client.get(api_url, timeout=12.0)
             if response.status_code == 200:
                 p = response.json()
                 return JSONResponse(content={
@@ -35,9 +41,9 @@ async def get_player_info(request: Request, uid: str = None, region: str = "ind"
                     "last_login": p.get("last_login", "Bilinmiyor"),
                     "likes": p.get("likes", 0),
                     "guild": p.get("guild_name", "Bir birliğe üye değil"),
-                    "region": p.get("region", region.upper())
+                    "region": p.get("region", req_region.upper())
                 })
             else:
-                return JSONResponse(content={"status": "error", "message": "Oyuncu bulunamadı."})
+                return JSONResponse(status_code=404, content={"status": "error", "message": "Oyuncu bulunamadı."})
         except Exception as e:
-            return JSONResponse(content={"status": "error", "message": f"Bağlantı hatası: {str(e)}"})
+            return JSONResponse(status_code=500, content={"status": "error", "message": f"Bağlantı hatası: {str(e)}"})
