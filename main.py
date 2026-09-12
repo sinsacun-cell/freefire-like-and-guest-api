@@ -23,7 +23,7 @@ async def handle_root(request: Request):
 
             if chat_id and text:
                 if text.startswith("/start"):
-                    await send_msg(chat_id, "👋 Bot aktif! Kullanım: `/bilgi 1875588196 sg`")
+                    await send_msg(chat_id, "👋 Bot aktif ve hazır!\nKullanım: `/bilgi 1875588196 sg`")
                     return JSONResponse(status_code=200, content={"status": "ok"})
 
                 if text.startswith("/bilgi") or text.startswith("/info"):
@@ -35,11 +35,11 @@ async def handle_root(request: Request):
                     uid = parts[1]
                     region = parts[2].lower() if len(parts) > 2 else "sg"
 
-                    # Farklı aktif Free Fire API servislerini sırayla dene
+                    # Farklı çalışan Free Fire API endpoint yapıları
                     api_urls = [
-                        f"https://region-info.vercel.app/api/player?uid={uid}&region={region}",
-                        f"https://free-fire-info-api.vercel.app/api/info?uid={uid}&region={region}",
-                        f"https://ff-info-api.vercel.app/info?uid={uid}&region={region}"
+                        f"https://freefire-api-official.vercel.app/api/player?uid={uid}&region={region}",
+                        f"https://api.garenafreefire.org/info?uid={uid}&region={region}",
+                        f"https://freefire-virtex.vercel.app/api/info?uid={uid}&region={region}"
                     ]
 
                     p = None
@@ -48,27 +48,31 @@ async def handle_root(request: Request):
                             try:
                                 res = await client.get(url, timeout=6.0)
                                 if res.status_code == 200:
-                                    p = res.json()
-                                    break
+                                    res_data = res.json()
+                                    if "AccountInfo" in res_data or "nickname" in res_data or "basicInfo" in res_data or "name" in res_data:
+                                        p = res_data
+                                        break
                             except Exception:
                                 continue
 
                     if p:
-                        # API yanıt yapısına göre esnek veri çekme
-                        name = p.get('nickname') or p.get('AccountName') or p.get('name') or p.get('basicInfo', {}).get('nickname', 'Bilinmiyor')
-                        reg = p.get('region') or p.get('AccountRegion') or region.upper()
-                        likes = p.get('likes') or p.get('Likes') or p.get('basicInfo', {}).get('liked', 0)
-                        level = p.get('level') or p.get('Level') or p.get('basicInfo', {}).get('level', '—')
+                        # Dönen JSON yapısından veri ayıklama
+                        account = p.get("AccountInfo", p.get("basicInfo", p))
+                        name = account.get("AccountName") or account.get("nickname") or account.get("name") or "Bilinmiyor"
+                        level = account.get("AccountLevel") or account.get("level") or "—"
+                        likes = account.get("AccountLikes") or account.get("likes") or account.get("liked") or 0
+                        guild = p.get("GuildInfo", {}).get("GuildName") or p.get("guild_name") or "Yok"
 
                         reply = (
                             f"🎮 **Free Fire Oyuncu Bilgisi**\n\n"
                             f"👤 **Hesap Adı:** `{name}`\n"
                             f"⭐ **Seviye:** {level}\n"
-                            f"🌍 **Bölge:** {reg}\n"
-                            f"👍 **Beğeni Sayısı:** {likes}"
+                            f"🌍 **Bölge:** {region.upper()}\n"
+                            f"👍 **Beğeni Sayısı:** {likes}\n"
+                            f"🛡️ **Birlik:** {guild}"
                         )
                     else:
-                        reply = "❌ Oyuncu bilgisi çekilemedi. UID veya Bölgeyi kontrol edin (Örn: sg, eu, ind)."
+                        reply = f"❌ Oyuncu verisi alınamadı. Garena sunucuları veya UID/Bölge hatalı olabilir.\nDenenen UID: `{uid}` - Bölge: `{region.upper()}`"
 
                     await send_msg(chat_id, reply)
 
@@ -77,4 +81,4 @@ async def handle_root(request: Request):
 
         return JSONResponse(status_code=200, content={"status": "ok"})
 
-    return {"status": "online", "message": "Bot is running"}
+    return {"status": "online", "message": "Bot is active"}
