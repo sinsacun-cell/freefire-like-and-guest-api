@@ -35,48 +35,30 @@ async def handle_root(request: Request):
                     uid = parts[1]
                     region = parts[2].lower() if len(parts) > 2 else "sg"
 
-                    # Şu an aktif ve güncel çalışan Free Fire API'leri
-                    api_urls = [
-                        f"https://ff-api-src.vercel.app/api/player?uid={uid}&region={region}",
-                        f"https://free-fire-api-five.vercel.app/player_info?uid={uid}&region={region}",
-                        f"https://info-freefire.vercel.app/api/info?uid={uid}&region={region}"
-                    ]
-
-                    p = None
-                    last_error = ""
+                    # Dış Free Fire API Sorgusu
+                    api_url = f"https://free-fire-api-five.vercel.app/api/player?uid={uid}&region={region}"
 
                     async with httpx.AsyncClient() as client:
-                        for url in api_urls:
-                            try:
-                                res = await client.get(url, timeout=7.0)
-                                if res.status_code == 200:
-                                    res_data = res.json()
-                                    if isinstance(res_data, dict) and ("nickname" in res_data or "AccountInfo" in res_data or "name" in res_data):
-                                        p = res_data
-                                        break
-                                else:
-                                    last_error = f"HTTP {res.status_code}"
-                            except Exception as err:
-                                last_error = str(err)
-                                continue
+                        try:
+                            res = await client.get(api_url, timeout=8.0)
+                            if res.status_code == 200:
+                                p = res.json()
+                                account = p.get("AccountInfo", p.get("basicInfo", p))
+                                name = account.get("AccountName") or account.get("nickname") or account.get("name") or "Bilinmiyor"
+                                level = account.get("AccountLevel") or account.get("level") or "—"
+                                likes = account.get("AccountLikes") or account.get("likes") or account.get("liked") or 0
 
-                    if p:
-                        account = p.get("AccountInfo", p.get("basicInfo", p))
-                        name = account.get("AccountName") or account.get("nickname") or account.get("name") or "Bilinmiyor"
-                        level = account.get("AccountLevel") or account.get("level") or "—"
-                        likes = account.get("AccountLikes") or account.get("likes") or account.get("liked") or 0
-                        guild = p.get("GuildInfo", {}).get("GuildName") or p.get("guild_name") or "Yok"
-
-                        reply = (
-                            f"🎮 **Free Fire Oyuncu Bilgisi**\n\n"
-                            f"👤 **Hesap Adı:** `{name}`\n"
-                            f"⭐ **Seviye:** {level}\n"
-                            f"🌍 **Bölge:** {region.upper()}\n"
-                            f"👍 **Beğeni Sayısı:** {likes}\n"
-                            f"🛡️ **Birlik:** {guild}"
-                        )
-                    else:
-                        reply = f"❌ Dış API Hatası ({last_error}).\nUID: `{uid}` - Bölge: `{region.upper()}`"
+                                reply = (
+                                    f"🎮 **Free Fire Oyuncu Bilgisi**\n\n"
+                                    f"👤 **Hesap Adı:** `{name}`\n"
+                                    f"⭐ **Seviye:** {level}\n"
+                                    f"🌍 **Bölge:** {region.upper()}\n"
+                                    f"👍 **Beğeni Sayısı:** {likes}"
+                                )
+                            else:
+                                reply = f"⚠️ Dış API Yanıtı: HTTP {res.status_code}"
+                        except Exception as err:
+                            reply = f"⚠️ Bağlantı Hatası: {str(err)}"
 
                     await send_msg(chat_id, reply)
 
