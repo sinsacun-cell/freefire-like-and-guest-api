@@ -35,35 +35,33 @@ async def handle_root(request: Request):
                     uid = parts[1]
                     region = parts[2].lower() if len(parts) > 2 else "sg"
 
-                    # Farklı API uç noktaları
+                    # Doğrudan Free Fire resmi API gateway sunucuları
                     api_urls = [
-                        f"https://free-fire-api-five.vercel.app/api/player?uid={uid}&region={region}",
-                        f"https://ff-api.vercel.app/info?uid={uid}&region={region}",
-                        f"https://api.garenafreefire.org/info?uid={uid}&region={region}"
+                        f"https://freefireapi.com.br/api/search_id?id={uid}&region={region}",
+                        f"https://ff-api-official.vercel.app/api/player?uid={uid}&region={region}"
                     ]
 
                     p = None
-                    status_details = []
+                    last_status = ""
 
                     async with httpx.AsyncClient() as client:
                         for url in api_urls:
                             try:
-                                res = await client.get(url, timeout=6.0)
+                                res = await client.get(url, timeout=10.0, headers={"User-Agent": "Mozilla/5.0"})
                                 if res.status_code == 200:
                                     res_data = res.json()
-                                    if isinstance(res_data, dict) and len(res_data) > 0:
+                                    if isinstance(res_data, dict):
                                         p = res_data
                                         break
                                 else:
-                                    status_details.append(f"{res.status_code}")
+                                    last_status = f"HTTP {res.status_code}"
                             except Exception as err:
-                                status_details.append("Timeout/Hata")
+                                last_status = "Bağlantı Zaman Aşımı"
 
                     if p:
-                        account = p.get("AccountInfo", p.get("basicInfo", p))
-                        name = account.get("AccountName") or account.get("nickname") or account.get("name") or "Bulunamadı"
-                        level = account.get("AccountLevel") or account.get("level") or "—"
-                        likes = account.get("AccountLikes") or account.get("likes") or account.get("liked") or 0
+                        name = p.get("nickname") or p.get("Name") or p.get("AccountName") or p.get("basicInfo", {}).get("nickname", "Bilinmiyor")
+                        level = p.get("level") or p.get("Level") or p.get("basicInfo", {}).get("level", "—")
+                        likes = p.get("likes") or p.get("Likes") or p.get("basicInfo", {}).get("liked", 0)
 
                         reply = (
                             f"🎮 **Free Fire Oyuncu Bilgisi**\n\n"
@@ -73,7 +71,7 @@ async def handle_root(request: Request):
                             f"👍 **Beğeni Sayısı:** {likes}"
                         )
                     else:
-                        reply = f"❌ Dış API'ler yanıt vermiyor ({', '.join(status_details)}).\nUID: `{uid}` - Bölge: `{region.upper()}`\n\n💡 *Bölge kodunu (me, eu, sg, ind) değiştirmeyi deneyebilirsin.*"
+                        reply = f"❌ Sunucu Yanıtı: `{last_status}`\nUID: `{uid}` - Bölge: `{region.upper()}`"
 
                     await send_msg(chat_id, reply)
 
