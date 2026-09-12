@@ -4,46 +4,63 @@ from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
-# Dış Free Fire API Adresi
+# BotFather'dan aldığın Telegram Bot Token'ı buraya yaz
+TELEGRAM_BOT_TOKEN = "BURAYA_BOT_TOKEN_YAZ"
 EXTERNAL_API = "https://free-fire-api-five.vercel.app/api/player"
+
+async def send_telegram_message(chat_id: int, text: str):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
+    async with httpx.AsyncClient() as client:
+        await client.post(url, json=payload)
 
 @app.get("/")
 def read_root():
-    return {"status": "online", "message": "FF Stat API Active"}
+    return {"status": "online", "message": "FF Stat API & Webhook Active"}
 
-@app.api_route("/info", methods=["GET", "POST"])
-async def get_player_info(request: Request, uid: str = None, region: str = "eu"):
-    # URL query veya JSON body üzerinden parametreleri al
-    if not uid:
-        try:
-            body_data = await request.json()
-            uid = body_data.get("uid")
-            region = body_data.get("region", "eu")
-        except Exception:
-            pass
+@app.post("/webhook")
+async def telegram_webhook(request: Request):
+    try:
+        data = await request.json()
+        message = data.get("message", {})
+        text = message.get("text", "")
+        chat_id = message.get("chat", {}).get("id")
 
-    if not uid:
-        return JSONResponse(status_code=400, content={"status": "error", "message": "Lütfen geçerli bir UID girin."})
+        if not chat_id or not text:
+            return JSONResponse(status_code=200, content={"status": "ignored"})
 
-    # Varsayılan bölge Avrupa (eu)
-    req_region = region.lower() if region else "eu"
-    api_url = f"{EXTERNAL_API}?uid={uid}&region={req_region}"
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(api_url, timeout=12.0)
-            if response.status_code == 200:
-                p = response.json()
-                return JSONResponse(content={
-                    "status": "success",
-                    "nickname": p.get("nickname", "Bilinmiyor"),
-                    "created_at": p.get("account_created", "Bilinmiyor"),
-                    "last_login": p.get("last_login", "Bilinmiyor"),
-                    "likes": p.get("likes", 0),
-                    "guild": p.get("guild_name", "Bir birliğe üye değil"),
-                    "region": p.get("region", req_region.upper())
-                })
-            else:
-                return JSONResponse(status_code=404, content={"status": "error", "message": "Oyuncu bulunamadı."})
-        except Exception as e:
-            return JSONResponse(status_code=500, content={"status": "error", "message": f"Bağlantı hatası: {str(e)}"})
+        # Komut kontrolü (/bilgi veya /info)
+        if text.startswith("/bilgi") or text.startswith("/info"):
+            parts = text.split()
+            if len(parts) < 2:
+                await send_telegram_message(chat_id, "Lütfen bir UID girin.\nÖrnek: `/bilgi 1875588196 eu`")
+                return JSONResponse(status_code=200, content={"status": "ok"})
+
+            uid = parts[1]
+            region = parts[2].lower() if len(parts) > 2 else "eu"
+
+            async with httpx.AsyncClient() as client:
+                try:
+                    response = await client.get(f"{EXTERNAL_API}?uid={uid}&region={region}", timeout=10.0)
+                    if response.status_code == 200:
+                        p = response.json()
+                        reply = (
+                            f"🎮 **Free Fire Oyuncu Bilgisi**\n\n"
+                            f"👤 **Hesap Adı:** {p.get('nickname', 'Bilinmiyor')}\n"
+                            f"🌍 **Bölge (Sunucu):** {p.get('region', region.upper())}\n"
+                            f"📅 **Kuruluş Tarihi/Yılı:** {p.get('account_created', 'Bilinmiyor')}\n"
+                            f"⏰ **En Son Giriş Saati:** {p.get('last_login', 'Bilinmiyor')}\n"
+                            f"👍 **Beğeni Sayısı:** {p.get('likes', 0)}\n"
+                            f"🛡️ **Üye Olduğu Birlik:** {p.get('guild_name', 'Bir birliğe üye değil')}"
+                        )
+                    else:
+                        reply = "❌ Oyuncu bulunamadı. UID veya bölgeyi kontrol edin."
+                except Exception as e:
+                    reply = f"⚠️ Bağlantı hatası: {str(e)}"
+
+            await send_telegram_message(chat_id, reply)
+
+    except Exception as e:
+        print(f"Webhook hatası: {str(e)}")
+
+    return JSONResponse(status_code=200, content={"status": "ok"})
