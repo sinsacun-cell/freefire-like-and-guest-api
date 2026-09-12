@@ -35,7 +35,7 @@ async def handle_root(request: Request):
                     uid = parts[1]
                     region = parts[2].lower() if len(parts) > 2 else "sg"
 
-                    # Doğrudan Free Fire resmi API gateway sunucuları
+                    # Doğrudan Free Fire resmi API gateway ve alternatif sunucular
                     api_urls = [
                         f"https://freefireapi.com.br/api/search_id?id={uid}&region={region}",
                         f"https://ff-api-official.vercel.app/api/player?uid={uid}&region={region}"
@@ -50,7 +50,7 @@ async def handle_root(request: Request):
                                 res = await client.get(url, timeout=10.0, headers={"User-Agent": "Mozilla/5.0"})
                                 if res.status_code == 200:
                                     res_data = res.json()
-                                    if isinstance(res_data, dict):
+                                    if isinstance(res_data, dict) and len(res_data) > 0:
                                         p = res_data
                                         break
                                 else:
