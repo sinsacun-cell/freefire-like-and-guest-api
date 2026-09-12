@@ -4,7 +4,6 @@ from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
-# BotFather'dan aldığın Telegram Bot Token'ı buraya yaz
 TELEGRAM_BOT_TOKEN = "8909841952:AAEaInTW2VGYirq2TN1qslFQBJw7XjKq7b8"
 EXTERNAL_API = "https://free-fire-api-five.vercel.app/api/player"
 
@@ -15,11 +14,20 @@ async def send_telegram_message(chat_id: int, text: str):
         await client.post(url, json=payload)
 
 @app.get("/")
-def read_root():
+@app.post("/")
+async def root_handler(request: Request):
+    # Telegram webhook varsayılan ana dizine (/) istek gönderirsa da yakala
+    if request.method == "POST":
+        return await handle_telegram_update(request)
     return {"status": "online", "message": "FF Stat API & Webhook Active"}
 
-@app.post("/webhook")
-async def telegram_webhook(request: Request):
+@app.api_route("/webhook", methods=["GET", "POST"])
+async def webhook_handler(request: Request):
+    if request.method == "POST":
+        return await handle_telegram_update(request)
+    return {"status": "webhook endpoint ready"}
+
+async def handle_telegram_update(request: Request):
     try:
         data = await request.json()
         message = data.get("message", {})
@@ -29,7 +37,6 @@ async def telegram_webhook(request: Request):
         if not chat_id or not text:
             return JSONResponse(status_code=200, content={"status": "ignored"})
 
-        # Komut kontrolü (/bilgi veya /info)
         if text.startswith("/bilgi") or text.startswith("/info"):
             parts = text.split()
             if len(parts) < 2:
@@ -41,26 +48,26 @@ async def telegram_webhook(request: Request):
 
             async with httpx.AsyncClient() as client:
                 try:
-                    response = await client.get(f"{EXTERNAL_API}?uid={uid}&region={region}", timeout=10.0)
-                    if response.status_code == 200:
-                        p = response.json()
+                    res = await client.get(f"{EXTERNAL_API}?uid={uid}&region={region}", timeout=10.0)
+                    if res.status_code == 200:
+                        p = res.json()
                         reply = (
                             f"🎮 **Free Fire Oyuncu Bilgisi**\n\n"
                             f"👤 **Hesap Adı:** {p.get('nickname', 'Bilinmiyor')}\n"
-                            f"🌍 **Bölge (Sunucu):** {p.get('region', region.upper())}\n"
-                            f"📅 **Kuruluş Tarihi/Yılı:** {p.get('account_created', 'Bilinmiyor')}\n"
-                            f"⏰ **En Son Giriş Saati:** {p.get('last_login', 'Bilinmiyor')}\n"
+                            f"🌍 **Bölge:** {p.get('region', region.upper())}\n"
+                            f"📅 **Kuruluş Tarihi:** {p.get('account_created', 'Bilinmiyor')}\n"
+                            f"⏰ **Son Giriş:** {p.get('last_login', 'Bilinmiyor')}\n"
                             f"👍 **Beğeni Sayısı:** {p.get('likes', 0)}\n"
-                            f"🛡️ **Üye Olduğu Birlik:** {p.get('guild_name', 'Bir birliğe üye değil')}"
+                            f"🛡️ **Birlik:** {p.get('guild_name', 'Bir birliğe üye değil')}"
                         )
                     else:
                         reply = "❌ Oyuncu bulunamadı. UID veya bölgeyi kontrol edin."
                 except Exception as e:
-                    reply = f"⚠️ Bağlantı hatası: {str(e)}"
+                    reply = f"⚠️ Oyun API Hatası: {str(e)}"
 
             await send_telegram_message(chat_id, reply)
 
     except Exception as e:
-        print(f"Webhook hatası: {str(e)}")
+        print(f"Hata: {str(e)}")
 
     return JSONResponse(status_code=200, content={"status": "ok"})
